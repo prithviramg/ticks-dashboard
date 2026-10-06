@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NIFTY Straddle Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --fg: #1f2328; --muted: #59636e; --bg: #ffffff; --panel: #f6f8fa; --line: #d0d7de;
+    --grid: #eaeef2; --accent: #0969da; --on-accent: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --fg: #e6edf3; --muted: #9198a1; --bg: #0d1117; --panel: #161b22; --line: #30363d;
+      --grid: #21262d; --accent: #4493f8; --on-accent: #0d1117;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; display: flex; flex-direction: column;
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--fg); background: var(--bg);
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px;
+    padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  .group { display: flex; align-items: center; gap: 6px; }
+  .label { color: var(--muted); }
+  select, button {
+    font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px;
+  }
+  button { cursor: pointer; min-width: 32px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label {
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 4px 10px; cursor: pointer; background: var(--bg); white-space: nowrap; text-align: center;
+  }
+  .seg label small { font-size: 11px; opacity: .8; }
+  .seg label + input + label { border-left: 1px solid var(--line); }
+  .seg input:checked + label { background: var(--accent); color: var(--on-accent); }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .seg input:disabled + label { opacity: .4; cursor: default; }
+  @media (max-width: 520px) {
+    header { gap: 8px 12px; }
+    .seg label { padding: 3px 6px; font-size: 13px; }
+  }
+  #summary { padding: 6px 16px 0; color: var(--muted); min-height: 1.4em; }
+  #main { flex: 1 1 0; display: flex; min-height: 460px; }
+  #chart { flex: 1 1 auto; min-width: 0; }
+  #status { padding: 24px 16px; color: var(--muted); }
+  /* Strike panel: one row per strike, a button for both legs and a CE / PE checkbox each. */
+  #strikes {
+    flex: 0 0 190px; overflow-y: auto; padding-bottom: 8px;
+    background: var(--panel); border-left: 1px solid var(--line);
+  }
+  #strikes:empty { display: none; }
+  #strikes input { margin: 0; cursor: pointer; accent-color: var(--accent); }
+  #strikes .spot {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 1px solid var(--line); cursor: pointer;
+  }
+  #strikes .row { display: grid; grid-template-columns: 1fr 34px 34px; align-items: center; padding: 0 6px; }
+  #strikes .head {
+    position: sticky; top: 0; padding-top: 6px; padding-bottom: 2px;
+    background: var(--panel); color: var(--muted); font-size: 12px;
+  }
+  #strikes .head span { padding-left: 6px; }
+  #strikes .head span + span { padding-left: 0; text-align: center; }
+  #strikes .strike {
+    display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 6px;
+    border: 0; border-radius: 4px; background: none; text-align: left; font-variant-numeric: tabular-nums;
+  }
+  #strikes .strike::before {
+    content: ''; flex: 0 0 14px; height: 3px; border-radius: 2px; background: var(--swatch);
+  }
+  #strikes .strike:hover { background: var(--grid); }
+  #strikes .strike[aria-pressed=true] { font-weight: 600; }
+  #strikes .off .strike { opacity: .55; }
+  #strikes .cell { display: flex; justify-content: center; padding: 5px 0; cursor: pointer; }
+  @media (max-width: 700px) {
+    #main { flex: 1 0 auto; flex-direction: column; }
+    #chart { min-height: 360px; }
+    #strikes { flex: 0 0 auto; max-height: 40vh; border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>NIFTY</h1>
+  <div class="group">
+    <button id="older" title="Previous day" aria-label="Previous day">◀</button>
+    <select id="day" aria-label="Trading day"></select>
+    <button id="newer" title="Next day" aria-label="Next day">▶</button>
+  </div>
+  <div class="group">
+    <span class="label">Expiry</span>
+    <div class="seg" role="radiogroup" aria-label="Expiry">
+      <input type="radio" name="slot" id="slot-cw" value="cw" checked><label for="slot-cw">This week</label>
+      <input type="radio" name="slot" id="slot-nw" value="nw"><label for="slot-nw">Next week</label>
+      <input type="radio" name="slot" id="slot-cm" value="cm"><label for="slot-cm">This month</label>
+      <input type="radio" name="slot" id="slot-nm" value="nm"><label for="slot-nm">Next month</label>
+    </div>
+  </div>
+  <div class="group">
+    <span class="label">Strikes</span>
+    <div class="seg" role="radiogroup" aria-label="Strikes around ATM">
+      <input type="radio" name="range" id="range-5" value="5" checked><label for="range-5">±5</label>
+      <input type="radio" name="range" id="range-10" value="10"><label for="range-10">±10</label>
+      <input type="radio" name="range" id="range-15" value="15"><label for="range-15">±15</label>
+    </div>
+  </div>
+  <div class="group">
+    <span class="label">Straddles</span>
+    <div class="seg" role="radiogroup" aria-label="Straddle line: raw or EMA">
+      <input type="radio" name="ema" id="ema-0" value="0" checked><label for="ema-0">Raw</label>
+      <input type="radio" name="ema" id="ema-3" value="3"><label for="ema-3">EMA 3m</label>
+      <input type="radio" name="ema" id="ema-5" value="5"><label for="ema-5">EMA 5m</label>
+      <input type="radio" name="ema" id="ema-10" value="10"><label for="ema-10">EMA 10m</label>
+    </div>
+  </div>
+</header>
+<div id="summary"></div>
+<main id="main">
+  <div id="chart"><p id="status">Loading…</p></div>
+  <aside id="strikes" aria-label="Strikes"></aside>
+</main>
+<script src="https://cdn.plot.ly/plotly-4.1.1.min.js" integrity="sha256-O24V1F27f8pb0glCkelh3cVHLNiHAJ5gCaVtq2aNch8=" crossorigin="anonymous" charset="utf-8"></script>
+<script src="app.js"></script>
+</body>
+</html>
